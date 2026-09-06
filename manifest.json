@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "omask",
+  "name": "omask",
+  "version": "1.0.0",
+  "author": "Ali Shabdar",
+  "license": "MIT",
+  "homepage": "https://github.com/shabdar/omarchy-ask",
+  "description": "Centered overlay to ask the default AI a quick question and continue in the browser.",
+  "kinds": ["overlay"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "Overlay.qml"
+  }
+}
