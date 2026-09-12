@@ -77,7 +77,7 @@ Item {
   function refreshProvider() {
     // Reload the provider record and reset the logo fallback index.
     root.provider = AskModel.providerFor(root.agentId)
-    logoMark.candidateIndex = 0
+    if (logoMark) logoMark.candidateIndex = 0
   }
 
   function stopAsk() {
@@ -102,6 +102,7 @@ Item {
     // Show the overlay; optional JSON `{ "prompt": "..." }` pre-fills the field.
     var payload = ({})
     try { payload = JSON.parse(AskModel.clip(payloadJson || "{}", 4096)) } catch (e) { payload = ({}) }
+    root.refreshAgent()
     root.refreshProvider()
     root.resetQuery()
     if (payload.prompt) root.promptText = AskModel.clip(payload.prompt, root.maxPrompt)
@@ -220,7 +221,7 @@ Item {
     id: infoProc
     command: ["/usr/bin/python3", "-I", "-S", root.askScript, "--info"]
     stdout: SplitParser {
-      splitMarker: ""
+      splitMarker: "\n"
       onRead: function(chunk) {
         if (root.infoBuf.length + String(chunk).length > 2048) {
           infoProc.signal(15)
@@ -231,10 +232,13 @@ Item {
       }
     }
     onExited: function() {
-      var data = AskModel.parseAskOutput(root.infoBuf)
-      root.infoBuf = ""
-      if (data.agent) root.agentId = data.agent
-      root.refreshProvider()
+      // --info is fast; wait a tick so SplitParser can flush the JSON line.
+      Qt.callLater(function() {
+        var data = AskModel.parseAskOutput(root.infoBuf)
+        root.infoBuf = ""
+        if (data.agent) root.agentId = data.agent
+        root.refreshProvider()
+      })
     }
   }
 
@@ -299,6 +303,7 @@ Item {
     }
   }
 
+  onAskScriptChanged: root.refreshAgent()
   Component.onCompleted: root.refreshAgent()
   Component.onDestruction: {
     root.stopAsk()
