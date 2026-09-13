@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.1
+
+Marketplace-ready identity.
+
+- Plugin id `io.github.shabdar.omask` (the `omarchy.*` namespace is reserved for built-ins)
+- Display name `omAsk`
+- Docs: install path, IPC, update/remove commands, external dependencies
+- Install still does not write Hyprland binds or other user config
+- Migration: `omarchy plugin remove omask --yes`, re-add from git, then update the Super+Q bind to toggle `io.github.shabdar.omask`
+
 ## 1.0.0
 
 First public release.

@@ -1,9 +1,9 @@
 # Architecture
 
-omask is a `keepLoaded` Omarchy overlay. The shell summons `Overlay.qml`; that file never talks to an AI API itself. It runs two helpers and paints the result.
+omAsk is a `keepLoaded` Omarchy overlay (plugin id `io.github.shabdar.omask`). The shell summons `Overlay.qml`; that file never talks to an AI API itself. It runs two helpers and paints the result.
 
 ```
-omarchy-shell shell toggle omask '{}'
+omarchy-shell shell toggle io.github.shabdar.omask '{}'
         │
         ▼
  Overlay.qml          layer-shell card (WlrLayer.Overlay)
@@ -25,7 +25,7 @@ Entry point from `manifest.json`. `open` / `close` / `toggle` / `dismiss` are th
 | Piece | Why |
 | --- | --- |
 | `keepLoaded: true` | Overlay process stays alive so Super+Q is instant. A code change may not apply until `omarchy restart shell`. |
-| `pluginDir` | Prefer `manifest.__sourceDir`. Fallback is `~/.config/omarchy/plugins/omask` because `omarchy plugin add` installs by manifest id. |
+| `pluginDir` | Prefer `manifest.__sourceDir`. Fallback is `~/.config/omarchy/plugins/io.github.shabdar.omask` because `omarchy plugin add` installs by manifest id. |
 | `FileView` | Watcher only. Default agent is read by `ask.py --info`, not `FileView.text()`. |
 | `Process askProc` | `/usr/bin/python3 -I -S ask.py --ask` with a SplitParser byte cap and TERM/KILL. |
 | `Quickshell.execDetached` | Argv arrays only (`wl-copy --`, `python3 -I -S open_chat.py`). |
@@ -82,7 +82,7 @@ Ctrl+L, Ctrl+V, Return     force the URL (PWA reuse can ignore ?q=)
 if grok.com: Return        confirm "Send this message?"
 ```
 
-Traces go to `~/.cache/omarchy/omask/open.log`.
+No persistent cache file. Browser handoff may copy the question to the clipboard.
 
 ## Adding an overlay backend
 
