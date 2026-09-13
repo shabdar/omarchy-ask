@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.2
+
+Keep user prompts off process command lines.
+
+- Overlay writes the question to `ask.py --ask` on stdin (`Process.write`)
+- `wl-copy` and `open_chat.py` take clipboard/prompt bytes on stdin
+- Agent CLIs receive the question on stdin, not `-p` / positional argv
+- Browser handoff launches the chat host without `?q=` on Chromium argv, then pastes the seeded URL
+- Notifications no longer include the question text
+
 ## 1.0.1
 
 Marketplace-ready identity.
