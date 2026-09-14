@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.5
+
+Open in browser was leaving Chromium on about:blank.
+
+- `wl-copy` / `wtype` / `hyprctl` inherit `WAYLAND_DISPLAY` (and the Hyprland session vars)
+- The continuation packet still never appears on argv
+
 ## 1.0.4
 
 Fix blank Open in browser composers.

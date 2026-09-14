@@ -82,7 +82,20 @@ def run_bounded(argv: list[str], *, max_bytes: int = MAX_CHILD_BYTES, timeout: f
                 stdin_data: bytes | None = None) -> subprocess.CompletedProcess:
     """Run argv in its own session; cap stdout/stderr; TERM then KILL the group."""
     env = {}
-    for key in ("HOME", "PATH", "USER", "LANG", "LC_ALL", "XDG_RUNTIME_DIR", "XDG_CONFIG_HOME"):
+    for key in (
+        "HOME",
+        "PATH",
+        "USER",
+        "LANG",
+        "LC_ALL",
+        "XDG_RUNTIME_DIR",
+        "XDG_CONFIG_HOME",
+        "WAYLAND_DISPLAY",
+        "HYPRLAND_INSTANCE_SIGNATURE",
+        "XDG_SESSION_TYPE",
+        "XDG_CURRENT_DESKTOP",
+        "DISPLAY",
+    ):
         if key in os.environ:
             env[key] = os.environ[key]
     proc = subprocess.Popen(
