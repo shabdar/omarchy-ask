@@ -3,9 +3,8 @@
 
 Prints a single JSON object on stdout (capped), then exits.
 
-  ask.py --info                 metadata for `omarchy default agent`
-  ask.py --ask                  short answer; prompt on stdin
-  ask.py --ask <prompt>         same, prompt from argv (capped)
+  ask.py --info    metadata for `omarchy default agent`
+  ask.py --ask     short answer; prompt on stdin (NUL- or EOF-terminated)
 """
 
 from __future__ import annotations
@@ -17,7 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bounded import MAX_CHILD_BYTES, read_nofollow, run_bounded
+from bounded import MAX_CHILD_BYTES, MAX_PROMPT_BYTES, read_nofollow, read_stdin_prompt, run_bounded
 
 SYSTEM_PROMPT = """You are a desktop quick-answer assistant. The user is mid-task and needs a short, clear, useful answer so they can continue.
 
@@ -50,7 +49,6 @@ ALIASES = {
 
 AGENT_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,31}$")
 MAX_SUMMARY_CHARS = 720
-MAX_PROMPT_BYTES = 4000
 ASK_TIMEOUT_SEC = 90
 AGENT_FILE = os.path.expanduser("~/.config/omarchy/defaults/agent")
 BASH = ["/usr/bin/bash", "--noprofile", "--norc"]
@@ -139,7 +137,7 @@ def wrapped_prompt(prompt: str) -> str:
 
 
 def login_argv(argv: list[str]) -> list[str]:
-    """Run an allowlisted CLI via a constant bash -c; data stays in argv."""
+    """Run an allowlisted CLI via a constant bash -c; prompt stays on stdin."""
     return [*BASH, "-c", 'exec "$1" "${@:2}"', "omask", *argv]
 
 
@@ -154,8 +152,10 @@ def binary_on_path(binary: str) -> bool:
     return proc.returncode == 0 and bool((proc.stdout or b"").strip())
 
 
-def argv_for(agent: str, prompt: str) -> list[str] | None:
-    """Headless, tool-restricted argv. None if this agent has no overlay backend."""
+def invoke_for(agent: str, prompt: str) -> tuple[list[str], bytes] | None:
+    """Headless argv plus stdin payload. Prompt never appears in argv."""
+    raw = prompt.encode("utf-8")
+    wrapped = wrapped_prompt(prompt).encode("utf-8")
     if agent == "grok":
         return [
             "grok",
@@ -167,8 +167,8 @@ def argv_for(agent: str, prompt: str) -> list[str] | None:
             "--max-turns", "1",
             "--tools", "",
             "--system-prompt-override", SYSTEM_PROMPT,
-            "-p", prompt,
-        ]
+            "--prompt-file", "/dev/stdin",
+        ], raw
     if agent == "claude":
         return [
             "claude",
@@ -177,21 +177,23 @@ def argv_for(agent: str, prompt: str) -> list[str] | None:
             "--max-turns", "1",
             "--tools", "",
             "--append-system-prompt", SYSTEM_PROMPT,
-            "--",
-            prompt,
-        ]
+        ], raw
     if agent == "gemini":
-        return ["gemini", "--approval-mode", "plan", "-p", wrapped_prompt(prompt)]
-    if agent == "copilot":
-        return ["copilot", "-p", wrapped_prompt(prompt)]
+        return ["gemini", "--approval-mode", "plan", "-p", ""], wrapped
     if agent == "codex":
-        return ["codex", "exec", "--skip-git-repo-check", "-s", "read-only", "--", wrapped_prompt(prompt)]
-    if agent == "opencode":
-        return ["opencode", "run", "--", wrapped_prompt(prompt)]
+        return ["codex", "exec", "--skip-git-repo-check", "-s", "read-only"], wrapped
     if agent == "crush":
-        return ["crush", "run", "--", wrapped_prompt(prompt)]
+        return ["crush", "run"], wrapped
     if agent in ("pi", "omp"):
-        return [agent, "--print", "--no-tools", "--system-prompt", SYSTEM_PROMPT, "--", prompt]
+        return [
+            agent,
+            "--print",
+            "--no-tools",
+            "--system-prompt", SYSTEM_PROMPT,
+            "--",
+            "/dev/stdin",
+        ], raw
+    # Copilot/OpenCode require the prompt as a CLI argument; fail closed.
     return None
 
 
@@ -201,28 +203,29 @@ def looks_like_auth_error(text: str) -> bool:
     return any(n in lowered for n in ("login", "auth", "unauthor", "401", "api key", "not logged", "sign in"))
 
 
-def read_prompt(argv: list[str]) -> str:
-    """Take the ask prompt from remaining argv or from stdin, capped."""
-    if argv:
-        raw = " ".join(argv).encode("utf-8")
-    else:
-        raw = sys.stdin.buffer.read(MAX_PROMPT_BYTES + 1)
-    if len(raw) > MAX_PROMPT_BYTES:
+def read_prompt() -> str:
+    """Read the overlay question from stdin only."""
+    raw = read_stdin_prompt(MAX_PROMPT_BYTES)
+    if not raw:
         return ""
     try:
-        text = raw.decode("utf-8", "strict").strip()
+        return raw.decode("utf-8", "strict").strip()
     except UnicodeDecodeError:
         return ""
-    return text[:MAX_PROMPT_BYTES]
 
 
 def ask_agent(provider: dict, prompt: str) -> None:
     """Call the default agent's CLI and emit a summary or an error."""
     binary = provider.get("binary") or ""
     name = provider["name"]
-    argv = argv_for(provider["id"], prompt)
-    if not argv:
-        emit(result(provider, code="open-browser", error=f"No overlay backend for {name}. Open the browser to continue."))
+    invoked = invoke_for(provider["id"], prompt)
+    if not invoked:
+        emit(result(
+            provider,
+            code="open-browser",
+            error=f"Overlay answers cannot pass a private prompt to {name} without putting it on the command line. Open the browser to continue.",
+        ))
+    argv, stdin_data = invoked
     if not binary_on_path(binary):
         emit(result(
             provider,
@@ -230,7 +233,12 @@ def ask_agent(provider: dict, prompt: str) -> None:
             error=f"{name} CLI is not on PATH. Install it with `omarchy default agent {provider['id']}`, then try again.",
         ))
     try:
-        proc = run_bounded(login_argv(argv), max_bytes=MAX_CHILD_BYTES, timeout=ASK_TIMEOUT_SEC)
+        proc = run_bounded(
+            login_argv(argv),
+            max_bytes=MAX_CHILD_BYTES,
+            timeout=ASK_TIMEOUT_SEC,
+            stdin_data=stdin_data,
+        )
     except ValueError:
         emit(result(provider, code="failed", error=f"{name} returned too much output."))
     except OSError:
@@ -267,10 +275,10 @@ def main(argv: list[str]) -> None:
     if not argv or argv[0] in ("--info", "info"):
         emit(result(provider, ok=True, canAsk=bool(provider.get("can_ask"))))
 
-    if argv[0] != "--ask":
-        emit(result(provider, code="usage", error="Usage: ask.py --ask <prompt>"), 2)
+    if argv[0] != "--ask" or len(argv) != 1:
+        emit(result(provider, code="usage", error="Usage: ask.py --ask  (prompt on stdin)"), 2)
 
-    prompt = read_prompt(argv[1:])
+    prompt = read_prompt()
     if not prompt:
         emit(result(provider, code="empty", error="Type a question first."))
 

@@ -18,7 +18,7 @@ import urllib.parse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bounded import run_bounded
+from bounded import MAX_PROMPT_BYTES, read_stdin_prompt, run_bounded
 
 CHAT_URL = {
     "grok": "https://grok.com/?q={q}",
@@ -44,7 +44,6 @@ CHAT_HOSTS = {
 CONFIRM_SEND = {"grok"}
 AGENT_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,31}$")
 ADDR_RE = re.compile(r"^0x[0-9a-f]+$")
-MAX_PROMPT_BYTES = 4000
 HYPRCTL = "/usr/bin/hyprctl"
 CHROMIUM = "/usr/bin/chromium"
 WL_COPY = "/usr/bin/wl-copy"
@@ -236,28 +235,45 @@ def chat_url(agent: str, prompt: str) -> str:
     return url
 
 
+def read_prompt() -> str:
+    """Read the overlay question from stdin only (NUL- or EOF-terminated)."""
+    raw = read_stdin_prompt(MAX_PROMPT_BYTES)
+    if not raw:
+        return ""
+    try:
+        return raw.decode("utf-8", "strict").strip()
+    except UnicodeDecodeError:
+        return ""
+
+
 def main(argv: list[str]) -> int:
-    """Open the agent's web chat for `--prompt`, then exit."""
-    parser = argparse.ArgumentParser(description="Open the agent's web chat with the overlay question.")
-    parser.add_argument("--prompt", default="")
+    """Copy stdin to the clipboard, or open the agent's web chat."""
+    parser = argparse.ArgumentParser(description="Open the agent's web chat; prompt on stdin.")
     parser.add_argument("--agent", default="")
+    parser.add_argument("--copy", action="store_true", help="Copy stdin to the clipboard and exit.")
     args = parser.parse_args(argv)
 
-    prompt = (args.prompt or "")[:MAX_PROMPT_BYTES]
+    prompt = read_prompt()
+    if args.copy:
+        if prompt:
+            copy_text(prompt)
+        return 0
+
     agent = (args.agent or "").strip().lower()
     if not AGENT_RE.fullmatch(agent) or agent in (".", ".."):
         agent = ""
     url = chat_url(agent, prompt)
     title = agent[:1].upper() + agent[1:] if agent else "omask"
-    notify(f"Opening {title}", prompt or "(empty prompt)")
+    notify(f"Opening {title}", "Continuing in the browser.")
 
     if not url:
         notify("omask", f"No web chat URL for {title}.")
         return 0
 
+    origin = urllib.parse.urlunparse(("https", urllib.parse.urlparse(url).netloc, "/", "", "", ""))
     copy_text(url)
     old = chromium_addresses()
-    launch(url)
+    launch(origin)
     addr = wait_new_window(old)
     if not addr:
         return 0

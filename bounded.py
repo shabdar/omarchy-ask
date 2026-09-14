@@ -12,10 +12,46 @@ import select
 import signal
 import stat
 import subprocess
+import sys
 import time
 
 MAX_CHILD_BYTES = 262144
 MAX_AGENT_FILE = 256
+MAX_PROMPT_BYTES = 4000
+
+
+def read_stdin_prompt(max_bytes: int = MAX_PROMPT_BYTES) -> bytes:
+    """Read a prompt from stdin until EOF, NUL, or a short idle after data.
+
+    QML Process.write() may not close stdin, so an idle timeout is required.
+    Never take the prompt from argv.
+    """
+    data = b""
+    first_wait = 3.0
+    idle = 0.4
+    got = False
+    while len(data) <= max_bytes:
+        wait = idle if got else first_wait
+        ready, _, _ = select.select([sys_stdin()], [], [], wait)
+        if not ready:
+            break
+        chunk = os.read(0, min(4096, max_bytes + 1 - len(data)))
+        if not chunk:
+            break
+        nul = chunk.find(b"\0")
+        if nul != -1:
+            data += chunk[:nul]
+            break
+        data += chunk
+        got = True
+    if len(data) > max_bytes:
+        return b""
+    return data
+
+
+def sys_stdin():
+    """Return the stdin stream for select()."""
+    return sys.stdin
 
 
 def read_nofollow(path: str, max_bytes: int = MAX_AGENT_FILE) -> bytes | None:

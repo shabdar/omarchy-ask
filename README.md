@@ -6,7 +6,7 @@ Type, read a short on-screen answer from the system default AI, and continue in 
 
 Created by [Ali Shabdar](https://github.com/shabdar).
 
-**Display name:** omAsk · **Plugin id:** `io.github.shabdar.omask` · **License:** MIT · **Version:** 1.0.1
+**Display name:** omAsk · **Plugin id:** `io.github.shabdar.omask` · **License:** MIT · **Version:** 1.0.2
 
 Third-party plugins cannot use the reserved `omarchy.*` id namespace. The public id is `io.github.shabdar.omask`; the GitHub repo is [`omarchy-ask`](https://github.com/shabdar/omarchy-ask). `omarchy plugin add` installs into `~/.config/omarchy/plugins/io.github.shabdar.omask/` from the manifest id, not the repo name.
 
@@ -45,7 +45,7 @@ omarchy plugin remove io.github.shabdar.omask --yes
 | **Copy** | Copy the on-screen answer |
 | Escape or click the dimmed desktop | Dismiss |
 
-The logo and backend follow `omarchy default agent` (`~/.config/omarchy/defaults/agent`). Overlay answers run that agent's CLI (Grok, Claude, Gemini, Copilot, Codex, OpenCode, Crush, Pi, Oh My Pi). Agents without a consumer web chat still answer in the overlay; **Open in browser** stays disabled.
+The logo and backend follow `omarchy default agent` (`~/.config/omarchy/defaults/agent`). Overlay answers run that agent's CLI with the question on stdin (Grok, Claude, Gemini, Codex, Crush, Pi, Oh My Pi). Copilot and OpenCode have no stdin prompt mode; use **Open in browser**. Agents without a consumer web chat still answer in the overlay; **Open in browser** stays disabled.
 
 **Open in browser** starts a *new* web chat with the same question (`?q=`). It is not the CLI session. grok.com may show **Send this message?** — the helper confirms Send so the chat lands in History.
 

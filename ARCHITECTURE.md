@@ -11,7 +11,7 @@ omarchy-shell shell toggle io.github.shabdar.omask '{}'
         ├─ FileView  ~/.config/omarchy/defaults/agent
         │              → AskModel.providerFor() → logo + placeholder
         │
-        ├─ Enter     Process: python3 ask.py --ask "<prompt>"
+        ├─ Enter     Process: python3 ask.py --ask   (prompt on stdin)
         │              → one JSON object on stdout
         │
         └─ Ctrl+Enter / Open in browser
@@ -27,7 +27,7 @@ Entry point from `manifest.json`. `open` / `close` / `toggle` / `dismiss` are th
 | `keepLoaded: true` | Overlay process stays alive so Super+Q is instant. A code change may not apply until `omarchy restart shell`. |
 | `pluginDir` | Prefer `manifest.__sourceDir`. Fallback is `~/.config/omarchy/plugins/io.github.shabdar.omask` because `omarchy plugin add` installs by manifest id. |
 | `FileView` | Watcher only. Default agent is read by `ask.py --info`, not `FileView.text()`. |
-| `Process askProc` | `/usr/bin/python3 -I -S ask.py --ask` with a SplitParser byte cap and TERM/KILL. |
+| `Process askProc` | `/usr/bin/python3 -I -S ask.py --ask` with the question on stdin, SplitParser byte cap, and TERM/KILL. |
 | `Quickshell.execDetached` | Argv arrays only (`wl-copy --`, `python3 -I -S open_chat.py`). |
 | `WlrLayershell.namespace: "omask"` | Layer-shell identity. |
 | `askPrompt` | Frozen copy of the submitted question so Open in browser still works after the field is cleared. |
@@ -60,9 +60,9 @@ One JSON object on stdout, then exit. The CLI is whatever `omarchy default agent
 | Mode | Behavior |
 | --- | --- |
 | `--info` (or no args) | Provider metadata. Overlay runs this when the agent file changes. |
-| `--ask <prompt>` | Headless one-shot for that agent's CLI. |
+| `--ask` | Headless one-shot. The question is on stdin, never argv. |
 
-`argv_for()` is the per-agent table: `grok -p`, `claude -p`, `gemini -p`, `copilot -p`, `codex exec`, `opencode run`, `crush run`, `pi --print`, `omp --print`. Each runs through a login shell so mise binaries resolve.
+`invoke_for()` is the per-agent table. The question is passed on stdin (`grok --prompt-file /dev/stdin`, `claude -p`, `gemini -p`, `codex exec`, `crush run`, `pi`/`omp -- /dev/stdin`). Copilot and OpenCode have no stdin prompt mode; those overlay answers fail closed. Each CLI runs through a login shell so mise binaries resolve.
 
 `code` values the overlay cares about: `open-browser`, `auth`, `missing-cli`, `timeout`, `failed`, `empty`, `usage`, `no-agent`.
 

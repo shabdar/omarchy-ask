@@ -6,7 +6,8 @@ Keep user prompts off process command lines.
 
 - Overlay writes the question to `ask.py --ask` on stdin (`Process.write`)
 - `wl-copy` and `open_chat.py` take clipboard/prompt bytes on stdin
-- Agent CLIs receive the question on stdin, not `-p` / positional argv
+- Agent CLIs receive the question via stdin or `--prompt-file /dev/stdin`, not `-p` / positional argv
+- Copilot and OpenCode overlay answers fail closed to Open in browser (those CLIs require the prompt as an argument)
 - Browser handoff launches the chat host without `?q=` on Chromium argv, then pastes the seeded URL
 - Notifications no longer include the question text
 
