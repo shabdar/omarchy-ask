@@ -26,6 +26,7 @@ Item {
   property string askErrBuf: ""
   property string copyPayload: ""
   property string browserAgent: ""
+  property string browserPayload: ""
   property var provider: AskModel.providerFor("")
 
   property color background: Color.menu.background
@@ -192,9 +193,13 @@ Item {
   }
 
   function openBrowser() {
-    // Hand off the asked prompt on stdin; argv is only --agent <allowlisted id>.
+    // Hand off prompt + overlay answer on stdin as JSON; argv is only --agent.
     var prompt = AskModel.clip(root.askPrompt || root.promptText || promptField.text || "", root.maxPrompt)
     root.askPrompt = prompt
+    root.browserPayload = JSON.stringify({
+      prompt: prompt,
+      answer: AskModel.clip(root.summary, 720)
+    })
     root.browserAgent = AskModel.normalizeAgent(root.provider && root.provider.id ? root.provider.id : "")
     if (browserProc.running) browserProc.signal(15)
     browserProc.stdinEnabled = true
@@ -264,7 +269,7 @@ Item {
     command: ["/usr/bin/python3", "-I", "-S", root.pluginDir + "/open_chat.py", "--agent", root.browserAgent]
     stdinEnabled: true
     onStarted: {
-      browserProc.write(root.askPrompt)
+      browserProc.write(root.browserPayload)
       browserProc.stdinEnabled = false
     }
   }

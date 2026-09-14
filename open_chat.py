@@ -41,7 +41,8 @@ CHAT_HOSTS = {
     "crush.xyz",
 }
 
-CONFIRM_SEND = {"grok"}
+# After navigating to ?q=, press Return so the site sends the seeded packet.
+CONFIRM_SEND = set(CHAT_URL)
 AGENT_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,31}$")
 ADDR_RE = re.compile(r"^0x[0-9a-f]+$")
 HYPRCTL = "/usr/bin/hyprctl"
@@ -144,7 +145,7 @@ def copy_text(text: str) -> None:
     """Put `text` on the Wayland clipboard via stdin (not argv)."""
     if not os.path.isfile(WL_COPY):
         return
-    payload = text.encode("utf-8")[:8000]
+    payload = text.encode("utf-8")[:12000]
     try:
         run_bounded([WL_COPY, "--"], max_bytes=4096, timeout=2, stdin_data=payload)
     except (ValueError, OSError):
@@ -217,12 +218,41 @@ def force_url_in_window(addr: str, url: str, confirm_send: bool) -> None:
         wtype("-k", "Return")
 
 
-def chat_url(agent: str, prompt: str) -> str:
+MAX_PACKET_CHARS = 1200
+
+
+def clip_text(value: str, limit: int) -> str:
+    """Collapse whitespace and cap length for the continuation packet."""
+    text = " ".join(str(value or "").split())
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "…"
+
+
+def continuation_packet(prompt: str, answer: str) -> str:
+    """One user message the web model can treat as overlay history."""
+    prompt = clip_text(prompt, 400)
+    answer = clip_text(answer, 500)
+    if not prompt:
+        return ""
+    if not answer:
+        return prompt
+    body = (
+        f"I asked: {prompt}\n\n"
+        f"You answered (desktop overlay): {answer}\n\n"
+        "Continue from there. Wait for my next message."
+    )
+    if len(body) <= MAX_PACKET_CHARS:
+        return body
+    return body[: MAX_PACKET_CHARS - 1].rstrip() + "…"
+
+
+def chat_url(agent: str, packet: str) -> str:
     """Build an allowlisted https chat URL, or ""."""
     if agent not in CHAT_URL or agent in (".", ".."):
         return ""
     template = CHAT_URL[agent]
-    q = urllib.parse.quote(prompt[:MAX_PROMPT_BYTES], safe="") if prompt else ""
+    q = urllib.parse.quote(packet, safe="") if packet else ""
     url = template.format(q=q) if q else template.split("?")[0]
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme != "https" or parsed.username or parsed.password:
@@ -236,7 +266,7 @@ def chat_url(agent: str, prompt: str) -> str:
 
 
 def read_prompt() -> str:
-    """Read the overlay question from stdin only (NUL- or EOF-terminated)."""
+    """Read raw stdin (used by --copy)."""
     raw = read_stdin_prompt(MAX_PROMPT_BYTES)
     if not raw:
         return ""
@@ -246,6 +276,28 @@ def read_prompt() -> str:
         return ""
 
 
+def read_handoff() -> tuple[str, str]:
+    """Read overlay JSON `{prompt, answer}` from stdin; fall back to plain text."""
+    raw = read_stdin_prompt(MAX_PROMPT_BYTES)
+    if not raw:
+        return "", ""
+    try:
+        text = raw.decode("utf-8", "strict").strip()
+    except UnicodeDecodeError:
+        return "", ""
+    if text.startswith("{"):
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return clip_text(text, 400), ""
+        if not isinstance(data, dict):
+            return "", ""
+        prompt = clip_text(str(data.get("prompt") or ""), 400)
+        answer = clip_text(str(data.get("answer") or ""), 500)
+        return prompt, answer
+    return clip_text(text, 400), ""
+
+
 def main(argv: list[str]) -> int:
     """Copy stdin to the clipboard, or open the agent's web chat."""
     parser = argparse.ArgumentParser(description="Open the agent's web chat; prompt on stdin.")
@@ -253,16 +305,18 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--copy", action="store_true", help="Copy stdin to the clipboard and exit.")
     args = parser.parse_args(argv)
 
-    prompt = read_prompt()
     if args.copy:
-        if prompt:
-            copy_text(prompt)
+        payload = read_prompt()
+        if payload:
+            copy_text(payload)
         return 0
 
+    prompt, answer = read_handoff()
+    packet = continuation_packet(prompt, answer)
     agent = (args.agent or "").strip().lower()
     if not AGENT_RE.fullmatch(agent) or agent in (".", ".."):
         agent = ""
-    url = chat_url(agent, prompt)
+    url = chat_url(agent, packet)
     title = agent[:1].upper() + agent[1:] if agent else "omask"
     notify(f"Opening {title}", "Continuing in the browser.")
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.3
+
+Open in browser continues from the overlay exchange.
+
+- Seeds a continuation packet (`I asked` / `You answered (desktop overlay)`) as `?q=`
+- Confirms Send so the web chat is already running
+- Prompt and overlay answer travel on stdin JSON, not argv
+
 ## 1.0.2
 
 Keep user prompts off process command lines.

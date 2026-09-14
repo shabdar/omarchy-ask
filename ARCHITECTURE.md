@@ -68,18 +68,18 @@ One JSON object on stdout, then exit. The CLI is whatever `omarchy default agent
 
 ## open_chat.py
 
-The CLI session and the consumer website do **not** share a conversation id. Handoff is: new Chromium window + `?q=`.
+The CLI session and the consumer website do **not** share a conversation id. Handoff is a continuation packet in `?q=` (overlay question + overlay answer), then Send.
 
-Do **not** use `omarchy launch webapp` (`chromium --app=`). That reuses a PWA and often drops `?q=`.
+Do **not** use `omarchy launch webapp` (`chromium --app=`). That reuses a PWA and often drops `?q=`. Chromium argv is the allowlisted origin only; the seeded URL is pasted.
 
 ```
-copy URL
+stdin JSON { prompt, answer } → continuation packet
 snapshot Chromium addresses
-chromium --new-window <url>
+chromium --new-window <origin>
 wait for a new Chromium address
 focus it
-Ctrl+L, Ctrl+V, Return     force the URL (PWA reuse can ignore ?q=)
-if grok.com: Return        confirm "Send this message?"
+Ctrl+L, Ctrl+V, Return     paste https://…/?q=<packet>
+Return                     send / confirm "Send this message?"
 ```
 
 No persistent cache file. Browser handoff may copy the question to the clipboard.
@@ -92,7 +92,7 @@ No persistent cache file. Browser handoff may copy the question to the clipboard
 
 ## Adding a web chat
 
-Add a `CHAT_URL` template in `open_chat.py`. `{q}` is `urllib.parse.quote` of the overlay prompt. If the site needs a Send confirm, add the agent id to `CONFIRM_SEND`.
+Add a `CHAT_URL` template in `open_chat.py`. `{q}` is `urllib.parse.quote` of the continuation packet. Send is confirmed with Return after navigation.
 
 ## Theme
 
