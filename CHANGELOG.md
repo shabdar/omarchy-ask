@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.2
+
+Prompts never travel on process argv.
+
+- Overlay, `ask.py`, `open_chat.py`, and `wl-copy` take the question on stdin
+- Agent CLIs receive the question via stdin or `--prompt-file /dev/stdin`
+- Copilot and OpenCode overlay answers fail closed to Open in browser (those CLIs require the prompt as an argument)
+- Chromium is launched at the allowlisted origin; the seeded URL is pasted, not passed on chromium's command line
+
 ## 1.0.1
 
 Marketplace-ready identity.

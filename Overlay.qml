@@ -24,6 +24,8 @@ Item {
   property string askPrompt: ""
   property string askBuf: ""
   property string askErrBuf: ""
+  property string copyPayload: ""
+  property string browserAgent: ""
   property var provider: AskModel.providerFor("")
 
   property color background: Color.menu.background
@@ -147,6 +149,7 @@ Item {
       askProc.signal(15)
       askKill.start()
     }
+    askProc.stdinEnabled = true
     askProc.running = true
   }
 
@@ -179,19 +182,23 @@ Item {
   }
 
   function copyText(value) {
-    // Copy `value` to the Wayland clipboard as its own argv element.
+    // Copy via stdin to open_chat.py --copy (wl-copy argv never sees the text).
     var text = AskModel.clip(value, 2000)
     if (!text) return
-    Quickshell.execDetached(["/usr/bin/wl-copy", "--", text])
+    root.copyPayload = text
+    if (copyProc.running) copyProc.signal(15)
+    copyProc.stdinEnabled = true
+    copyProc.running = true
   }
 
   function openBrowser() {
-    // Hand off the asked prompt to the agent's web chat, then dismiss.
+    // Hand off the asked prompt on stdin; argv is only --agent <allowlisted id>.
     var prompt = AskModel.clip(root.askPrompt || root.promptText || promptField.text || "", root.maxPrompt)
-    var agent = AskModel.normalizeAgent(root.provider && root.provider.id ? root.provider.id : "")
-    var script = root.pluginDir + "/open_chat.py"
-    if (prompt) root.copyText(prompt)
-    Quickshell.execDetached(["/usr/bin/python3", "-I", "-S", script, "--agent", agent, "--prompt", prompt])
+    root.askPrompt = prompt
+    root.browserAgent = AskModel.normalizeAgent(root.provider && root.provider.id ? root.provider.id : "")
+    if (browserProc.running) browserProc.signal(15)
+    browserProc.stdinEnabled = true
+    browserProc.running = true
     root.dismiss()
   }
 
@@ -243,8 +250,29 @@ Item {
   }
 
   Process {
+    id: copyProc
+    command: ["/usr/bin/python3", "-I", "-S", root.pluginDir + "/open_chat.py", "--copy"]
+    stdinEnabled: true
+    onStarted: {
+      copyProc.write(root.copyPayload)
+      copyProc.stdinEnabled = false
+    }
+  }
+
+  Process {
+    id: browserProc
+    command: ["/usr/bin/python3", "-I", "-S", root.pluginDir + "/open_chat.py", "--agent", root.browserAgent]
+    stdinEnabled: true
+    onStarted: {
+      browserProc.write(root.askPrompt)
+      browserProc.stdinEnabled = false
+    }
+  }
+
+  Process {
     id: askProc
-    command: ["/usr/bin/python3", "-I", "-S", root.askScript, "--ask", root.askPrompt]
+    command: ["/usr/bin/python3", "-I", "-S", root.askScript, "--ask"]
+    stdinEnabled: true
     stdout: SplitParser {
       splitMarker: ""
       onRead: function(chunk) {
@@ -265,6 +293,10 @@ Item {
         }
         root.askErrBuf += chunk
       }
+    }
+    onStarted: {
+      askProc.write(root.askPrompt)
+      askProc.stdinEnabled = false
     }
     onExited: function(exitCode) {
       askKill.stop()
@@ -308,6 +340,8 @@ Item {
   Component.onDestruction: {
     root.stopAsk()
     if (infoProc.running) infoProc.signal(15)
+    if (copyProc.running) copyProc.signal(15)
+    if (browserProc.running) browserProc.signal(15)
   }
 
   PanelWindow {
