@@ -194,6 +194,8 @@ Item {
 
   function openBrowser() {
     // Hand off prompt + overlay answer on stdin as JSON; argv is only --agent.
+    // Delay dismiss + stdin close so the JSON is not truncated and exclusive
+    // keyboard focus is gone before the helper types into Chromium.
     var prompt = AskModel.clip(root.askPrompt || root.promptText || promptField.text || "", root.maxPrompt)
     root.askPrompt = prompt
     root.browserPayload = JSON.stringify({
@@ -204,7 +206,7 @@ Item {
     if (browserProc.running) browserProc.signal(15)
     browserProc.stdinEnabled = true
     browserProc.running = true
-    root.dismiss()
+    browserFlush.restart()
   }
 
   function refreshAgent() {
@@ -268,9 +270,16 @@ Item {
     id: browserProc
     command: ["/usr/bin/python3", "-I", "-S", root.pluginDir + "/open_chat.py", "--agent", root.browserAgent]
     stdinEnabled: true
-    onStarted: {
-      browserProc.write(root.browserPayload)
-      browserProc.stdinEnabled = false
+    onStarted: browserProc.write(root.browserPayload)
+  }
+
+  Timer {
+    id: browserFlush
+    interval: 150
+    repeat: false
+    onTriggered: {
+      if (browserProc.running) browserProc.stdinEnabled = false
+      root.dismiss()
     }
   }
 

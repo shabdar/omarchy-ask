@@ -32,10 +32,10 @@ def read_stdin_prompt(max_bytes: int = MAX_PROMPT_BYTES) -> bytes:
     got = False
     while len(data) <= max_bytes:
         wait = idle if got else first_wait
-        ready, _, _ = select.select([sys_stdin()], [], [], wait)
+        ready, _, _ = select.select([sys.stdin.fileno()], [], [], wait)
         if not ready:
             break
-        chunk = os.read(0, min(4096, max_bytes + 1 - len(data)))
+        chunk = os.read(sys.stdin.fileno(), min(4096, max_bytes + 1 - len(data)))
         if not chunk:
             break
         nul = chunk.find(b"\0")
@@ -47,11 +47,6 @@ def read_stdin_prompt(max_bytes: int = MAX_PROMPT_BYTES) -> bytes:
     if len(data) > max_bytes:
         return b""
     return data
-
-
-def sys_stdin():
-    """Return the stdin stream for select()."""
-    return sys.stdin
 
 
 def read_nofollow(path: str, max_bytes: int = MAX_AGENT_FILE) -> bytes | None:

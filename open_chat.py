@@ -186,33 +186,48 @@ def wait_new_window(old: list[str], tries: int = 48) -> str:
     return ""
 
 
+def pick_chromium(old: list[str]) -> str:
+    """New Chromium window, else the active one, else any Chromium."""
+    addr = wait_new_window(old)
+    if addr:
+        return addr
+    active = hypr_json(["activewindow"])
+    if isinstance(active, dict) and active.get("class") == "chromium":
+        found = str(active.get("address") or "")
+        if ADDR_RE.fullmatch(found):
+            return found
+    addrs = chromium_addresses()
+    return addrs[-1] if addrs else ""
+
+
 def force_url_in_window(addr: str, url: str, confirm_send: bool) -> None:
-    """Re-navigate via the address bar; optionally confirm grok.com Send."""
+    """Paste an allowlisted https URL via the address bar, then confirm Send."""
     copy_text(url)
+    time.sleep(0.25)
     if not focus_address(addr):
         return
-    time.sleep(0.35)
+    time.sleep(0.45)
     if not focus_address(addr):
         return
     wtype("-M", "ctrl", "-k", "l")
     wtype("-m", "ctrl")
-    time.sleep(0.15)
+    time.sleep(0.2)
     if not focus_address(addr):
         return
     wtype("-M", "ctrl", "-k", "a")
     wtype("-m", "ctrl")
-    time.sleep(0.1)
+    time.sleep(0.12)
     wtype("-M", "ctrl", "-k", "v")
     wtype("-m", "ctrl")
-    time.sleep(0.15)
+    time.sleep(0.2)
     wtype("-k", "Return")
     if not confirm_send:
         return
-    time.sleep(2.2)
+    time.sleep(2.8)
     if not focus_address(addr):
         return
     wtype("-k", "Return")
-    time.sleep(0.8)
+    time.sleep(0.9)
     title = window_title(addr)
     if title.strip() in ("Grok", "Grok - Chromium") and focus_address(addr):
         wtype("-k", "Return")
@@ -318,18 +333,18 @@ def main(argv: list[str]) -> int:
         agent = ""
     url = chat_url(agent, packet)
     title = agent[:1].upper() + agent[1:] if agent else "omask"
+    if not packet or not url or "?" not in url:
+        notify("omask", "Nothing to continue in the browser.")
+        return 0
     notify(f"Opening {title}", "Continuing in the browser.")
 
-    if not url:
-        notify("omask", f"No web chat URL for {title}.")
-        return 0
-
-    origin = urllib.parse.urlunparse(("https", urllib.parse.urlparse(url).netloc, "/", "", "", ""))
     copy_text(url)
     old = chromium_addresses()
-    launch(origin)
-    addr = wait_new_window(old)
+    # about:blank on argv — the seeded URL is pasted, never passed as a flag.
+    launch("about:blank")
+    addr = pick_chromium(old)
     if not addr:
+        notify("omask", "Could not find a Chromium window.")
         return 0
     force_url_in_window(addr, url, confirm_send=agent in CONFIRM_SEND)
     return 0

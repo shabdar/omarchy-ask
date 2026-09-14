@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.4
+
+Fix blank Open in browser composers.
+
+- Keep the continuation packet off Chromium argv (`about:blank`, then paste the encoded URL)
+- Flush overlay stdin before closing it so the JSON handoff is not truncated
+- If Chromium reuses a window, still paste into it
+
 ## 1.0.3
 
 Open in browser continues from the overlay exchange.
